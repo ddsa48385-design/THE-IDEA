@@ -98,6 +98,7 @@ header{position:sticky;top:env(safe-area-inset-top,0px);z-index:5;display:flex;a
   <div class="hr"><button class="ib" id="theme" aria-label="ธีม"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 3v18"/></svg></button><button class="hav" id="hav" data-a="mine" aria-label="ช่องของฉัน"></button></div>
 </header>
 <div class="wrap">
+  <div id="banner" class="card empty" style="display:none;padding:14px;font-size:.85rem">โหมดทดลองในเครื่อง: ยังไม่ได้ใส่ค่า Firebase โพสต์จะเห็นเฉพาะในเครื่องนี้</div>
   <div id="top"></div>
   <div class="card comp" id="comp" style="display:none">
     <div class="row"><div id="cav"></div><div><textarea id="txt" rows="2" placeholder="ไอเดียของคุณคืออะไร…"></textarea>
@@ -122,7 +123,20 @@ header{position:sticky;top:env(safe-area-inset-top,0px);z-index:5;display:flex;a
   <div class="mbtns"><button class="btn g" id="cancel" style="display:none" data-a="close">ยกเลิก</button><button class="btn a" data-a="save">บันทึก</button></div>
   </div>
 </div></div>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
 <script>
+/* ===== ใส่ค่าจาก Firebase ตรงนี้ (ดูวิธีในคำอธิบาย) ===== */
+const FIREBASE_CONFIG={apiKey:"AIzaSyA753w04V1cZIzhaLzx56bsMIY_AlvA-84",authDomain:"the-idea-967b7.firebaseapp.com",projectId:"the-idea-967b7",storageBucket:"the-idea-967b7.firebasestorage.app",messagingSenderId:"1022320000680",appId:"1:1022320000680:web:678193f1e5303eb1708c9d"};
+/* ======================================================== */
+function localDB(){const K='idea_local',L={};let D;try{D=JSON.parse(localStorage.getItem(K))||{}}catch(e){D={}}
+ const save=()=>{try{localStorage.setItem(K,JSON.stringify(D))}catch(e){}},notify=c=>(L[c]||[]).forEach(f=>f());
+ const snap=c=>{const o=D[c]||{},docs=Object.keys(o).map(id=>({id,exists:true,data:()=>o[id]}));return{docs,size:docs.length,empty:!docs.length}};
+ const col=c=>({onSnapshot(n){(L[c]=L[c]||[]).push(()=>n(snap(c)));setTimeout(()=>n(snap(c)),0);return()=>{}},
+  add:async d=>{const id='l'+Date.now()+Math.random().toString(36).slice(2,6);(D[c]=D[c]||{})[id]=d;save();notify(c);return{id}},
+  doc:id=>({set:async d=>{(D[c]=D[c]||{})[id]=d;save();notify(c)},update:async d=>{(D[c]=D[c]||{})[id]={...((D[c]||{})[id]||{}),...d};save();notify(c)},delete:async()=>{delete (D[c]||{})[id];save();notify(c)}})});
+ return{collection:col,doc:p=>{const[c,id]=p.split('/');return col(c).doc(id)}}}
 const P_={heart:'<path d="M12 21s-7.5-4.6-9.6-9.3C.9 8.3 3 4.5 6.8 4.5c2 0 3.6 1 5.2 3 1.6-2 3.2-3 5.2-3 3.8 0 5.9 3.8 4.4 7.2C19.500 16.400 12 21 12 21z"/>',cm:'<path d="M21 11.500a8.500 8.500 0 0 1-12.300 7.600L3 21l1.900-5.600A8.500 8.500 0 1 1 21 11.500z"/>',rp:'<path d="M17 2l4 4-4 4M3 11V9a3 3 0 0 1 3-3h15M7 22l-4-4 4-4M21 13v2a3 3 0 0 1-3 3H3"/>',sd:'<path d="M22 2L11 13M22 2l-7 20-4-9-9-4z"/>',bm:'<path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/>',tr:'<path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3"/>',go:'<path d="M5 12h14M13 6l6 6-6 6"/>'};
 const ic=n=>`<svg viewBox="0 0 24 24">${P_[n]}</svg>`;
 const EM=['😎','🦊','🐱','🐼','🌿','🌙','☕','🎨','📚','🌸','✨','🍋'];
@@ -147,8 +161,12 @@ const cnt=(k,id)=>Object.values(R).filter(r=>(r[k]||[]).includes(id)).length;
 function sched(){cancelAnimationFrame(raf);raf=requestAnimationFrame(render)}
 
 async function init(){
- const fail=()=>{$('list').innerHTML='<div class="card empty">หน้านี้ต้องเข้าสู่ระบบ claude.ai ก่อนจึงจะโพสต์และดูไอเดียของทุกคนได้<br>กรุณาเปิดลิงก์ผ่าน claude.ai</div>'};
- try{if(!window.claude)return fail();const u=await claude.use('user');db=await claude.use('db');if(!u||!db)return fail();me=await u.id();if(!me)return fail()}catch(e){return fail()}
+ const fail=m=>{$('list').innerHTML='<div class="card empty">'+m+'</div>'};
+ try{
+  if(FIREBASE_CONFIG.projectId&&window.firebase){firebase.initializeApp(FIREBASE_CONFIG);db=firebase.firestore();me=(await firebase.auth().signInAnonymously()).user.uid}
+  else{db=localDB();let u=null;try{u=localStorage.getItem('idea_uid')}catch(e){}if(!u){u='u'+Math.random().toString(36).slice(2,10);try{localStorage.setItem('idea_uid',u)}catch(e){}}me=u;
+   $('banner').style.display='block'}
+ }catch(e){return fail('เชื่อมต่อ Firebase ไม่สำเร็จ ตรวจสอบค่า config และเปิด Anonymous sign-in ใน Firebase ก่อน<br><small>'+esc(e.message||e)+'</small>')}
  const t=setTimeout(()=>{ready=true;sched()},10000);
  const sub=(n,fn)=>db.collection(n).onSnapshot(s=>{fn(s);if(n==='profiles'){ready=true;clearTimeout(t)}sched()},()=>{ready=true;sched()});
  sub('profiles',s=>{P={};s.docs.forEach(d=>P[d.id]=d.data())});
