@@ -163,12 +163,12 @@ function sched(){cancelAnimationFrame(raf);raf=requestAnimationFrame(render)}
 async function init(){
  const fail=m=>{$('list').innerHTML='<div class="card empty">'+m+'</div>'};
  try{
-  if(FIREBASE_CONFIG.projectId&&window.firebase){firebase.initializeApp(FIREBASE_CONFIG);db=firebase.firestore();me=(await firebase.auth().signInAnonymously()).user.uid}
+  if(FIREBASE_CONFIG.projectId&&window.firebase){firebase.initializeApp(FIREBASE_CONFIG);db=firebase.firestore();me=(await firebase.auth().signInAnonymously()).user.uid;window.__fb=1}
   else{db=localDB();let u=null;try{u=localStorage.getItem('idea_uid')}catch(e){}if(!u){u='u'+Math.random().toString(36).slice(2,10);try{localStorage.setItem('idea_uid',u)}catch(e){}}me=u;
    $('banner').style.display='block'}
  }catch(e){return fail('เชื่อมต่อ Firebase ไม่สำเร็จ ตรวจสอบค่า config และเปิด Anonymous sign-in ใน Firebase ก่อน<br><small>'+esc(e.message||e)+'</small>')}
  const t=setTimeout(()=>{ready=true;sched()},10000);
- const sub=(n,fn)=>db.collection(n).onSnapshot(s=>{fn(s);if(n==='profiles'){ready=true;clearTimeout(t)}sched()},()=>{ready=true;sched()});
+ const sub=(n,fn)=>db.collection(n).onSnapshot(s=>{fn(s);if(n==='profiles'){ready=true;clearTimeout(t)}sched()},e=>{ready=true;errShow(e,n);sched()});
  sub('profiles',s=>{P={};s.docs.forEach(d=>P[d.id]=d.data())});
  sub('posts',s=>{POSTS=s.docs.map(d=>({id:d.id,...d.data()}))});
  sub('comments',s=>{CM=s.docs.map(d=>({id:d.id,...d.data()}))});
@@ -215,7 +215,13 @@ function postH(p){
  <div class="tm">${ago(p.ts)}</div>
  ${open[p.id]?`<div class="cms">${cms.map(c=>{const u=P[c.uid]||GH;return `<div class="cm">${avH(u)}<div class="bb"><b>${esc(u.name)}</b>${esc(c.x)}</div></div>`}).join('')}<div class="cin"><input data-id="${p.id}" placeholder="เขียนความคิดเห็น…"><button data-a="send" data-id="${p.id}" aria-label="ส่ง">${ic('go')}</button></div></div>`:''}</article>`}
 
-async function wr(fn){try{await fn()}catch(e){toast('บันทึกไม่สำเร็จ ลองใหม่อีกครั้ง')}}
+function errShow(e,n){const c=(e&&(e.code||e.message))||'unknown',b=$('banner');b.style.display='block';b.style.color='#c0453a';
+ let h='ติดต่อ Firebase ไม่ได้ ('+esc(n||'')+'): '+esc(c)+'<br>';
+ if(/permission/i.test(c))h+='→ ยังไม่ได้วาง Rules ใน Firestore หรือยังไม่ได้กด Publish';
+ else if(/unavailable|not-found|failed-precondition/i.test(c))h+='→ ยังไม่ได้สร้าง Firestore Database (กด Create database)';
+ else h+='→ ตรวจ Anonymous sign-in และการตั้งค่า Firebase';
+ b.innerHTML=h}
+async function wr(fn){try{await fn()}catch(e){errShow(e,'เขียนข้อมูล');toast('บันทึกไม่สำเร็จ ดูข้อความด้านบน');console.error(e)}}
 function tgl(k,id){const r=rr(me),a=r[k],i=a.indexOf(id);i<0?a.push(id):a.splice(i,1);R[me]=r;render();wr(()=>db.doc('react/'+me).set(r))}
 function follow(u){if(u===me)return;const f=fol(me).slice(),i=f.indexOf(u);i<0?f.push(u):f.splice(i,1);P[me]={...P[me],following:f};render();wr(()=>db.doc('profiles/'+me).update({following:f}))}
 function send(id){const i=document.querySelector(`.cin input[data-id="${id}"]`),v=i&&i.value.trim();if(!v)return;i.value='';wr(()=>db.collection('comments').add({post:id,uid:me,x:v,ts:Date.now()}))}
